@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="asset_modify_form_transfer" model="ir.ui.view">
+        <field name="name">asset.modify.form.transfer</field>
+        <field name="model">asset.modify</field>
+        <field name="inherit_id" ref="account_asset.asset_modify_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='date']" position="after">
+                <field name="current_department_display"
+                       invisible="modify_action != 'transfer'"
+                       readonly="1"/>
+                <field name="dest_department_info"
+                       widget="many2many_tags"
+                       invisible="modify_action != 'transfer'"
+                       required="modify_action == 'transfer'"
+                       options="{'no_create': True}"/>
+                <field name="dest_analytic_distribution"
+                       widget="analytic_distribution"
+                       invisible="modify_action != 'transfer'"
+                       groups="analytic.group_analytic_accounting"/>
+                <field name="transfer_help"
+                       nolabel="1"
+                       invisible="modify_action != 'transfer'"/>
+            </xpath>
+            <xpath expr="//footer" position="inside">
+                <button name="action_transfer"
+                        type="object"
+                        string="Transfer"
+                        class="btn-primary"
+                        invisible="modify_action != 'transfer'"
+                        data-hotkey="q"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
