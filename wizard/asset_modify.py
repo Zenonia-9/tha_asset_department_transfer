@@ -19,10 +19,10 @@ CHILD_RELATION_FIELDS = ("children_ids", "child_ids")
 class AssetModify(models.TransientModel):
     _inherit = "asset.modify"
 
-    modify_action = fields.Selection(
-        selection_add=[("transfer", "Transfer")],
-        ondelete={"transfer": "cascade"},
-    )
+    def _get_selection_modify_options(self):
+        options = super()._get_selection_modify_options()
+        options.append(("transfer", _("Transfer")))
+        return options
     current_department_display = fields.Char(
         string="Current Department",
         compute="_compute_current_department_display",
@@ -37,6 +37,10 @@ class AssetModify(models.TransientModel):
     )
     dest_analytic_distribution = fields.Json(
         string="New Analytic Distribution",
+    )
+    analytic_precision = fields.Integer(
+        string="Analytic Precision",
+        default=2,
     )
     transfer_help = fields.Html(
         string="Transfer Help",
@@ -219,6 +223,10 @@ class AssetModify(models.TransientModel):
             field = asset._fields["department_info"]
             if field.type == "many2many" and field.comodel_name == "account.analytic.account":
                 vals["department_info"] = [Command.set(dest_accounts.ids)]
+            elif field.type == "many2many" and field.comodel_name == "cl.department":
+                cl_departments = self._match_cl_departments(dest_accounts)
+                if cl_departments:
+                    vals["department_info"] = [Command.set(cl_departments.ids)]
             elif field.type == "many2one" and field.comodel_name == "account.analytic.account":
                 vals["department_info"] = dest_accounts[:1].id
             elif field.type == "many2one" and field.comodel_name == "hr.department":
@@ -227,6 +235,18 @@ class AssetModify(models.TransientModel):
                     vals["department_info"] = department.id
         if vals:
             asset.write(vals)
+
+    def _match_cl_departments(self, dest_accounts):
+        """Map analytic accounts to cl.department records by name."""
+        if "cl.department" not in self.env:
+            return self.env["account.analytic.account"].browse()
+        CLDepartment = self.env["cl.department"]
+        departments = CLDepartment.browse()
+        for account in dest_accounts:
+            match = CLDepartment.search([("name", "=", account.name)], limit=1)
+            if match:
+                departments |= match
+        return departments
 
     def _match_hr_department(self, dest_accounts, asset):
         if "hr.department" not in self.env:
@@ -255,10 +275,11 @@ class AssetModify(models.TransientModel):
             if fname in asset._fields:
                 moves |= asset[fname]
         Move = self.env["account.move"]
+        # Only search on stored asset_id field, not computed asset_ids
         if "asset_id" in Move._fields:
-            moves |= Move.search([("asset_id", "=", asset.id)])
-        if "asset_ids" in Move._fields:
-            moves |= Move.search([("asset_ids", "in", asset.ids)])
+            field = Move._fields["asset_id"]
+            if getattr(field, "store", True):
+                moves |= Move.search([("asset_id", "=", asset.id)])
         return moves
 
     def _get_transferable_draft_moves(self, asset, transfer_date):
@@ -289,9 +310,20 @@ class AssetModify(models.TransientModel):
                 ids.add(int(key))
         return ids
 
+    def _get_source_analytic_accounts(self, asset):
+        """Get current analytic accounts from asset's analytic distribution."""
+        distribution = asset.analytic_distribution or {}
+        account_ids = self._distribution_account_ids(distribution)
+        if not account_ids:
+            return self.env["account.analytic.account"]
+        return self.env["account.analytic.account"].browse(list(account_ids))
+
     def _post_transfer_chatter(self, asset, assets, dest_accounts, transfer_date, updated_moves):
         dest_label = ", ".join(dest_accounts.mapped("display_name"))
         current_label = self._format_department_info(asset) or _("(empty)")
+        source_accounts = self._get_source_analytic_accounts(asset)
+        source_analytic_label = ", ".join(source_accounts.mapped("display_name")) if source_accounts else _("(none)")
+        dest_analytic_label = ", ".join(dest_accounts.mapped("display_name"))
         note = self.name or ""
         body = Markup(
             "<p>%s</p><ul>"
@@ -299,11 +331,15 @@ class AssetModify(models.TransientModel):
             "<li>%s</li>"
             "<li>%s</li>"
             "<li>%s</li>"
+            "<li>%s</li>"
+            "<li>%s</li>"
             "%s</ul>"
         ) % (
             _("Asset transferred between departments."),
-            _("From: %s") % current_label,
-            _("To: %s") % dest_label,
+            _("From Department: %s") % current_label,
+            _("From Analytic: %s") % source_analytic_label,
+            _("To Department: %s") % dest_label,
+            _("To Analytic: %s") % dest_analytic_label,
             _("Transfer date: %s") % transfer_date,
             _("Draft depreciation entries updated: %s") % len(updated_moves),
             Markup("<li>%s</li>") % (_("Note: %s") % note) if note else Markup(""),
