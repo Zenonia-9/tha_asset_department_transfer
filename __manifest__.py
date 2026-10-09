@@ -1,6 +1,6 @@
 {
     "name": "Asset Department Transfer",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "category": "Accounting/Accounting",
     "summary": "Transfer a running asset to another department without touching posted depreciation",
     "description": """

@@ -109,7 +109,7 @@ class AssetModify(models.TransientModel):
 
         updated_moves = self.env["account.move"]
         for target in assets:
-            self._write_asset_department(target, dest_accounts, new_distribution)
+            self._write_asset_department(target, dest_accounts, new_distribution, transfer_date)
             draft_moves = self._get_transferable_draft_moves(target, transfer_date)
             self._apply_distribution_on_draft_moves(draft_moves, new_distribution)
             updated_moves |= draft_moves
@@ -215,8 +215,9 @@ class AssetModify(models.TransientModel):
             kept[str(account.id)] = share
         return kept
 
-    def _write_asset_department(self, asset, dest_accounts, new_distribution):
+    def _write_asset_department(self, asset, dest_accounts, new_distribution, transfer_date):
         vals = {}
+        vals["tha_transfer_date"] = transfer_date
         if "analytic_distribution" in asset._fields:
             vals["analytic_distribution"] = new_distribution
         if "department_info" in asset._fields:

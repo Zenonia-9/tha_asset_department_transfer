@@ -6,6 +6,7 @@ Extends the Odoo `account_asset` module to allow transferring a running asset to
 ## Features
 - Transfer action added to the Modify Asset wizard (alongside Dispose / Sell / Re-evaluate / Pause)
 - Updates the asset's department info (`account.asset.department_info`) on transfer
+- Stores the latest transfer date in `account.asset.tha_transfer_date`
 - Updates the asset's analytic distribution (`account.asset.analytic_distribution`)
 - Updates analytic distribution on draft depreciation entries dated on or after the transfer date
 - Posted depreciation entries are never modified
@@ -28,6 +29,8 @@ docker exec odoo_19 odoo -d THA -u tha_asset_department_transfer --stop-after-in
 3. Select the **Transfer** action
 4. Choose the target department and confirm
 5. The asset's department and analytic distribution are updated; draft future depreciation entries reflect the new department
+
+The latest transfer date is saved on the asset as **Last Transfer Date**. On upgrade, dates in existing Department Transfer chatter notes are backfilled. Earlier transfer dates remain available in the chatter.
 
 ## Technical Details
 ### Wizard
